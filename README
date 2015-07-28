@@ -1,0 +1,19 @@
+| SEGA SATURN SDK // SAMPLE 01 - SPRITE                                       |
+| README                                                                      |
+
+| OVERVIEW                                                                    |
+
+This sample demonstrates creating a sprite using the VDP1 and moving it with
+the standard gamepad.
+
+Until noted; this sample will not use any libraries from the SEGA Saturn SDK,
+as they have not yet been authored.
+
+Currently, there is no provided IP.BIN file.  An IP Maker tool is being created
+to facilitate the generation of IP.BIN.
+
+Options:
+* = default option
+ISO - False | Do not create an ISO image *
+      True  | Do create an ISO image
+
