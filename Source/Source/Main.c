@@ -7,10 +7,20 @@
 #include <Peripheral.h>
 #include <USBCart.h>
 
+#define BOOL	int
+#define TRUE	1
+#define FALSE	0
+
 uint16_t Color16( uint8_t p_Red, uint8_t p_Green, uint8_t p_Blue );
 
 const uint16_t SpriteWidth = 64;
 const uint16_t SpriteHeight = 64;
+const uint16_t SpriteStartX = 320 / 2;
+const uint16_t SpriteStartY = 240 / 2;
+
+BOOL HelpHidden = TRUE;
+
+void ToggleHelp( void );
 
 void main( void )
 {
@@ -23,7 +33,7 @@ void main( void )
 		( uint16_t * )( VDP1_VRAM + 0x40000 );
 	int Row, Column;
 	uint16_t SpriteColor = Color16( 8, 31, 8 );
-	int16_t SpriteX = 320 / 2, SpriteY = 240 / 2;
+	int16_t SpriteX = SpriteStartX, SpriteY = SpriteStartY;
 	int16_t SpriteVelX = 0, SpriteVelY = 0;
 	uint16_t HalfSpriteWidth = SpriteWidth / 2;
 	uint16_t HalfSpriteHeight = SpriteHeight / 2;
@@ -55,6 +65,7 @@ void main( void )
 	/* Enable the TV screen, 320x240NI */
 	VDP2_TVMD = 0x8010;
 
+	/* Gamepad button states */
 	PadNew = 0x0000;
 	PadOld = 0x0000;
 
@@ -85,6 +96,7 @@ void main( void )
 	{
 		char PrintBuffer[ 80 ];
 		size_t StringSize;
+		uint16_t SpriteAccelX = 1, SpriteAccelY = 1;
 
 		VDP_WaitVBlankOut( );
 		VDP_WaitVBlankIn( );
@@ -96,9 +108,26 @@ void main( void )
 		PadNew = PER_Read( 0 );
 		PadDelta = ( PadNew ^ PadOld ) & PadNew;
 
+		if( PadDelta & PER_Z )
+		{
+			ToggleHelp( );
+		}
+
 		if( PadNew & PER_START )
 		{
 			break;
+		}
+
+		if( PadNew & PER_RBUTTON )
+		{
+			SpriteAccelX = 5;
+			SpriteAccelY = 5;
+		}
+
+		if( PadDelta & PER_LBUTTON )
+		{
+			SpriteX = SpriteStartX;
+			SpriteY = SpriteStartY;
 		}
 
 		SpriteVelY = 0;
@@ -121,6 +150,29 @@ void main( void )
 			SpriteVelX += 1;
 		}
 
+		/* Set the position, clamping to the bounds of the screen */
+		SpriteX += SpriteVelX * SpriteAccelX;
+
+		if( ( SpriteX - HalfSpriteWidth ) < 0 )
+		{
+			SpriteX = HalfSpriteHeight;
+		}
+		if( ( SpriteX + HalfSpriteWidth ) > 320 )
+		{
+			SpriteX = 320 - HalfSpriteWidth;
+		}
+
+		SpriteY += SpriteVelY * SpriteAccelY;
+
+		if( ( SpriteY - HalfSpriteHeight ) <= 0 )
+		{
+			SpriteY = HalfSpriteHeight;
+		}
+		if( ( SpriteY + HalfSpriteHeight ) > 240 )
+		{
+			SpriteY = 240 - HalfSpriteHeight;
+		}
+
 		utoa( FrameCount, PrintBuffer, 10 );
 		StringSize = strlen( PrintBuffer );
 
@@ -133,33 +185,12 @@ void main( void )
 
 		DBG_Print( 40 - StringSize, 0, 0xF0, PrintBuffer );
 
+
 		++FrameCount;
 
 		VDP1_ClearCommandList( );
 		VDP1_SetSystemClipCoordinates( 320, 240 );
 		VDP1_SetLocalCoordinates( 0, 0 );
-
-		SpriteY += SpriteVelY;
-
-		if( ( SpriteY - HalfSpriteHeight ) <= 0 )
-		{
-			SpriteY = HalfSpriteHeight;
-		}
-		if( ( SpriteY + HalfSpriteHeight ) > 240 )
-		{
-			SpriteY = 240 - HalfSpriteHeight;
-		}
-
-		SpriteX += SpriteVelX;
-
-		if( ( SpriteX - HalfSpriteWidth ) < 0 )
-		{
-			SpriteX = HalfSpriteHeight;
-		}
-		if( ( SpriteX + HalfSpriteWidth ) > 320 )
-		{
-			SpriteX = 320 - HalfSpriteWidth;
-		}
 
 		VDP1_DrawSpriteNormalRGB( SpriteX - ( HalfSpriteWidth ),
 			SpriteY - ( HalfSpriteHeight ), SpriteWidth, SpriteHeight,
@@ -178,5 +209,30 @@ uint16_t Color16( uint8_t p_Red, uint8_t p_Green, uint8_t p_Blue )
 			( ( p_Green ) & 0x1F ) << 5 |
 			( ( p_Blue ) & 0x1F ) << 10 |
 			0x8000 );
+}
+
+void ToggleHelp( void )
+{
+	if( HelpHidden )
+	{
+		DBG_Print( 4, 3, 0xF0, "Up       - Move sprite up" );
+		DBG_Print( 4, 4, 0xF0, "Down     - Move sprite down" );
+		DBG_Print( 4, 5, 0xF0, "Left     - Move sprite left" );
+		DBG_Print( 4, 6, 0xF0, "Right    - Move sprite right" );
+		DBG_Print( 4, 7, 0xF0, "R [HOLD] - Accelerate move speed" );
+		DBG_Print( 4, 8, 0xF0, "L        - Reset position" );
+
+		HelpHidden = FALSE;
+	}
+	else
+	{
+		int Index;
+		for( Index = 0; Index < 10; ++Index )
+		{
+			DBG_ClearLine( 3 + Index );
+		}
+
+		HelpHidden = TRUE;
+	}
 }
 
