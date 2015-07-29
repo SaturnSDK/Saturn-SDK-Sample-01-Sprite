@@ -9,14 +9,24 @@
 
 uint16_t Color16( uint8_t p_Red, uint8_t p_Green, uint8_t p_Blue );
 
+const uint16_t SpriteWidth = 64;
+const uint16_t SpriteHeight = 64;
+
 void main( void )
 {
 	unsigned char *pDestination;
 	unsigned int Index;
 	uint32_t VInt;
 	uint16_t PadNew, PadOld, PadDelta;
-	uint16_t Red = 3, Green = 11, Blue = 19;
 	uint32_t FrameCount = 0U;
+	uint16_t *pTexture =
+		( uint16_t * )( VDP1_VRAM + 0x40000 );
+	int Row, Column;
+	uint16_t SpriteColor = Color16( 8, 31, 8 );
+	int16_t SpriteX = 320 / 2, SpriteY = 240 / 2;
+	int16_t SpriteVelX = 0, SpriteVelY = 0;
+	uint16_t HalfSpriteWidth = SpriteWidth / 2;
+	uint16_t HalfSpriteHeight = SpriteHeight / 2;
 
 	VDP_Initialize( );
 	PER_Initialize( );
@@ -24,12 +34,23 @@ void main( void )
 
 	USB_Print( "SEGA Saturn SDK Sample 01 - Sprite\n" );
 
+	/* Set the priority layers of the sprites */
+    VDP2_PRISA = 0x0101;
+    VDP2_PRISB = 0x0101;
+    VDP2_PRISC = 0x0101;
+    VDP2_PRISD = 0x0101;
+
+	/* Back screen mode - one color for the entire screen */
+	VDP2_BKTAU = 0x0000;
+
 	VDP1_TVMR = 0x0000;
 	VDP1_FBCR = 0x0000;
 	VDP1_PTMR = 0x0002;
 	VDP1_EWUL = 0x0000;
-	VDP1_EWLR = 0x28EF;
-	VDP1_EWDR = Color16( 31, 31, 31 );
+	/* 320x240 */
+	VDP1_EWLR = 0x50EF;
+	/* Transparent */
+	VDP1_EWDR = 0x0000;
 
 	/* Enable the TV screen, 320x240NI */
 	VDP2_TVMD = 0x8010;
@@ -42,8 +63,23 @@ void main( void )
 
 	DBG_Print( 2, 1, 0xF0, "Press Z for help" );
 
-	DBG_Print( 6, 26, 0xF0, "SEGA Saturn Sample 01 - Sprite" );
-	DBG_Print( 8, 27, 0xF0, "[saturnsdk.github.io]" );
+	DBG_Print( 20 - ( strlen( "SEGA Saturn Sample 01 - Sprite" ) / 2 ), 26,
+		0xF0, "SEGA Saturn Sample 01 - Sprite" );
+	DBG_Print( 20 - ( strlen( "[saturnsdk.github.io]" ) / 2 ), 27, 0xF0,
+		"[saturnsdk.github.io]" );
+
+	/* Create the sprite data */
+	for( Column = 0; Column < SpriteWidth; ++Column )
+	{
+		for( Row = 0; Row < SpriteHeight; ++Row )
+		{
+			pTexture[ Column * SpriteWidth + Row ] = SpriteColor;
+		}
+	}
+
+	/* Initialise command list */
+	VDP1_ClearCommandList( );
+	VDP1_EndCommandList( );
 
 	for( ;; )
 	{
@@ -65,6 +101,26 @@ void main( void )
 			break;
 		}
 
+		SpriteVelY = 0;
+		if( PadNew & PER_UP )
+		{
+			SpriteVelY -= 1;
+		}
+		if( PadNew & PER_DOWN )
+		{
+			SpriteVelY += 1;
+		}
+
+		SpriteVelX = 0;
+		if( PadNew & PER_LEFT )
+		{
+			SpriteVelX -= 1;
+		}
+		if( PadNew & PER_RIGHT )
+		{
+			SpriteVelX += 1;
+		}
+
 		utoa( FrameCount, PrintBuffer, 10 );
 		StringSize = strlen( PrintBuffer );
 
@@ -79,9 +135,37 @@ void main( void )
 
 		++FrameCount;
 
-		/* Change the background color */
+		VDP1_ClearCommandList( );
+		VDP1_SetSystemClipCoordinates( 320, 240 );
+		VDP1_SetLocalCoordinates( 0, 0 );
 
-		VDP2_SetBackgroundColor( Red, Green, Blue );
+		SpriteY += SpriteVelY;
+
+		if( ( SpriteY - HalfSpriteHeight ) <= 0 )
+		{
+			SpriteY = HalfSpriteHeight;
+		}
+		if( ( SpriteY + HalfSpriteHeight ) > 240 )
+		{
+			SpriteY = 240 - HalfSpriteHeight;
+		}
+
+		SpriteX += SpriteVelX;
+
+		if( ( SpriteX - HalfSpriteWidth ) < 0 )
+		{
+			SpriteX = HalfSpriteHeight;
+		}
+		if( ( SpriteX + HalfSpriteWidth ) > 320 )
+		{
+			SpriteX = 320 - HalfSpriteWidth;
+		}
+
+		VDP1_DrawSpriteNormalRGB( SpriteX - ( HalfSpriteWidth ),
+			SpriteY - ( HalfSpriteHeight ), SpriteWidth, SpriteHeight,
+			0x40000 );
+
+		VDP1_EndCommandList( );
 	}
 
 	PER_Shutdown( );
